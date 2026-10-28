@@ -1,47 +1,24 @@
+variables:
+  GET_SOURCES_ATTEMPTS: 5
+  GIT_DEPTH: 1
+
 stages:
-  - validate
   - test
   - deploy
 
-validate_website:
-  stage: validate
-  script:
-    - |
-      $ErrorActionPreference = 'Stop'
-      $requiredFiles = @('index.html', 'style.css', 'script.js')
-      foreach ($file in $requiredFiles) {
-        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
-          throw "Required file is missing: $file"
-        }
-      }
-      Write-Host 'All required website files are present.'
-
-test_website:
+run_selenium_junit_tests:
   stage: test
+  image: markhobson/maven-chrome:jdk-17
   script:
-    - |
-      $ErrorActionPreference = 'Stop'
-      $html = Get-Content -LiteralPath 'index.html' -Raw
-      $js = Get-Content -LiteralPath 'script.js' -Raw
-      $requiredHtml = @('id="number1"', 'id="number2"', 'id="addButton"')
-      foreach ($fragment in $requiredHtml) {
-        if (-not $html.Contains($fragment)) {
-          throw "Required HTML element is missing: $fragment"
-        }
-      }
-      if (-not $js.Contains('addButton')) {
-        throw 'The JavaScript does not reference the Add button.'
-      }
-      if (-not $js.Contains('Number(')) {
-        throw 'The JavaScript does not contain the expected number conversion.'
-      }
-      Write-Host 'Basic calculator checks passed.'
+    - mvn test
 
-deploy_website:
+deploy_to_aws:
   stage: deploy
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: manual
-  allow_failure: true
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
   script:
-    - Write-Host 'Deployment placeholder. No files have been uploaded.'
+    - aws --version
+    - aws s3 sync . s3://$S3_BUCKET_NAME --exclude '*' --include 'index.html' --include 'script.js' --include 'style.css'
+  only:
+    - main
